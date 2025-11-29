@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Previsão do Tempo – by Vinicius Marteleto</title>
+  <style>
+    /* Base */
+    :root {
+      --bg-start: #0d1b2a;
+      --bg-end: #000000;
+      --accent: #ffd166;
+      --text: #e0f2ff;
+      --muted: #a9c1d9;
+      --card-bg: rgba(255,255,255,0.04);
+      --card-border: rgba(255,255,255,0.08);
+      --table-border: rgba(255,255,255,0.1);
+      --neon-soft: rgba(0,255,255,0.25);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(ellipse at bottom, var(--bg-start) 0%, var(--bg-end) 100%);
+      color: var(--text);
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* Fundo estrelado */
+    .stars {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: transparent;
+    }
+    .stars::before,
+    .stars::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(2px 2px at 20% 30%, rgba(255,255,255,0.9), transparent),
+        radial-gradient(1.5px 1.5px at 70% 20%, rgba(255,255,255,0.6), transparent),
+        radial-gradient(1.7px 1.7px at 40% 80%, rgba(255,255,255,0.7), transparent),
+        radial-gradient(1.8px 1.8px at 85% 60%, rgba(255,255,255,0.75), transparent),
+        radial-gradient(1.2px 1.2px at 10% 70%, rgba(255,255,255,0.5), transparent);
+      opacity: 0.35;
+      animation: starDrift 90s linear infinite;
+    }
+    .stars::after {
+      filter: blur(0.4px);
+      opacity: 0.25;
+      animation-duration: 120s;
+    }
+    @keyframes starDrift {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-160px); }
+    }
+
+    /* Sol e lua */
+    .sun, .moon {
+      position: fixed;
+      top: 10vh;
+      left: 6vw;
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      z-index: 1;
+      display: none;
+    }
+    .sun {
+      background: radial-gradient(circle at 30% 30%, #fffbd1 0%, #ffd166 55%, #f5b041 100%);
+      box-shadow: 0 0 28px rgba(255, 209, 102, 0.5);
+      animation: sunPulse 4.5s ease-in-out infinite;
+    }
+    @keyframes sunPulse {
+      0%,100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+    .moon {
+      background:
+        radial-gradient(circle at 65% 40%, rgba(255,255,255,0.75) 0%, rgba(200,200,200,0.8) 35%, rgba(160,160,160,0.8) 60%, rgba(140,140,140,0.9) 100%),
+        radial-gradient(10px 10px at 35% 60%, rgba(180,180,180,0.6), transparent 60%),
+        radial-gradient(8px 8px at 55% 35%, rgba(180,180,180,0.5), transparent 60%),
+        radial-gradient(6px 6px at 70% 70%, rgba(180,180,180,0.5), transparent 60%);
+      box-shadow: 0 0 18px rgba(200, 200, 255, 0.3);
+      animation: moonDrift 60s linear infinite;
+    }
+    @keyframes moonDrift {
+      0%   { transform: translate(0, 0); }
+      25%  { transform: translate(30vw, 2vh); }
+      50%  { transform: translate(65vw, 4vh); }
+      75%  { transform: translate(30vw, 2vh); }
+      100% { transform: translate(0, 0); }
+    }
+
+    /* Chuva no vidro (leve) */
+    .rain {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .drop {
+      position: absolute;
+      width: 2px;
+      height: 24px;
+      background: linear-gradient(to bottom, rgba(230,240,255,0.0), rgba(170,200,255,0.85));
+      border-radius: 2px;
+      filter: blur(0.6px);
+      transform: translateY(-40px);
+      animation: fall 2.2s linear infinite, sway 2.2s ease-in-out infinite;
+      mix-blend-mode: screen;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-40px); opacity: 0.85; }
+      100% { transform: translateY(110vh); opacity: 0.1; }
+    }
+    @keyframes sway {
+      0%,100% { margin-left: 0; }
+      50% { margin-left: 6px; }
+    }
+    /* leve distorção como água no vidro */
+    .rain::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      backdrop-filter: blur(0.8px) saturate(1.02);
+    }
+
+    /* Layout */
+    .wrapper {
+      position: relative;
+      z-index: 3;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    header {
+      padding: 18px 10px 8px;
+      font-size: 30px;
+      font-weight: 700;
+      text-align: center;
+      color: var(--accent);
+      text-shadow: 0 0 10px rgba(255, 209, 102, 0.45);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      backdrop-filter: blur(6px);
+      position: relative;
+      overflow: hidden;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 0 10px rgba(96, 165, 250, 0.18);
+    }
+
+    .city {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: 0.2px;
+    }
+    .clima {
+      font-size: 15.5px;
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    /* Detalhes (apenas no hover) */
+    .details {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.45s ease, opacity 0.45s ease, margin-top 0.3s ease;
+      overflow: hidden;
+      margin-top: 0;
+    }
+    .card:hover .details {
+      max-height: 240px;
+      opacity: 1;
+      margin-top: 10px;
+    }
+
+    /* Neon suave entre os itens */
+    .detail-item {
+      padding: 6px 8px;
+      margin: 4px 0;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.02);
+      box-shadow: inset 0 0 8px var(--neon-soft);
+    }
+
+    /* Tabela de dados */
+    .table-wrap {
+      margin-top: 36px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 12px 10px;
+      text-align: center;
+      border-bottom: 1px solid var(--table-border);
+    }
+    th {
+      background: rgba(255,255,255,0.08);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    tr:last-child td { border-bottom: none; }
+
+    /* Gráfico */
+    .chart-wrap {
+      margin-top: 24px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 14px;
+      color: #8aa0b8;
+      margin-top: 36px;
+      padding-bottom: 22px;
+      letter-spacing: 0.2px;
+    }
+
+    /* Responsivo leve */
+    @media (max-width: 640px) {
+      .sun, .moon { width: 80px; height: 80px; top: 6vh; left: 4vw; }
+      header { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Camadas visuais -->
+  <div class="stars"></div>
+  <div class="sun" id="sun" aria-hidden="true"></div>
+  <div class="moon" id="moon" aria-hidden="true"></div>
+  <div class="rain" id="rain" aria-hidden="true"></div>
+
+  <!-- Conteúdo -->
+  <div class="wrapper">
+    <header>Previsão do Tempo</header>
+
+    <!-- Cards -->
+    <section class="grid" id="cards">
+      <div class="card" data-city="Taubaté" data-clima="Chuva moderada">
+        <div class="city">Taubaté</div>
+        <div class="clima">Chuva moderada</div>
+        <div class="details">
+          <div class="detail-item">Temperatura: 24°C</div>
+          <div class="detail-item">Umidade: 82%</div>
+          <div class="detail-item">Vento: 7 km/h</div>
+          <div class="detail-item">Sensação térmica: 22°C</div>
+          <div class="detail-item">Precipitação: 1.2 mm</div>
+        </div>
+      </div>
+
+      <div class="card" data-city="São Paulo" data-clima="Chuva moderada">
+        <div class="city">São Paulo</div>
+        <div class="clima">Chuva moderada</div>
+        <div class="details">
+          <div class="detail-item">Temperatura: 20°C</div>
+          <div class="detail-item">Umidade: 82%</div>
+          <div class="detail-item">Vento: 7 km/h</div>
+          <div class="detail-item">Sensação térmica: 19°C</div>
+          <div class="detail-item">Precipitação: 1.0 mm</div>
+        </div>
+      </div>
+
+      <div class="card" data-city="Rio de Janeiro" data-clima="Chuva leve">
+        <div class="city">Rio de Janeiro</div>
+        <div class="clima">Chuva leve</div>
+        <div class="details">
+          <div class="detail-item">Temperatura: 27°C</div>
+          <div class="detail-item">Umidade: 74%</div>
+          <div class="detail-item">Vento: 10 km/h</div>
+          <div class="detail-item">Sensação térmica: 28°C</div>
+          <div class="detail-item">Precipitação: 0.5 mm</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabela -->
+    <div class="table-wrap">
+      <table aria-label="Tabela de clima por cidade">
+        <thead>
+          <tr>
+            <th>Cidade</th>
+            <th>Temperatura</th>
+            <th>Umidade</th>
+            <th>Vento</th>
+            <th>Sensação</th>
+            <th>Precipitação</th>
+            <th>Condição</th>
+          </tr>
+        </thead>
+        <tbody id="weather-table">
+          <tr><td>Taubaté</td><td>24°C</td><td>82%</td><td>7 km/h</td><td>22°C</td><td>1.2 mm</td><td>Chuva moderada</td></tr>
+          <tr><td>São Paulo</td><td>20°C</td><td>82%</td><td>7 km/h</td><td>19°C</td><td>1.0 mm</td><td>Chuva moderada</td></tr>
+          <tr><td>Rio de Janeiro</td><td>27°C</td><td>74%</td><td>10 km/h</td><td>28°C</td><td>0.5 mm</td><td>Chuva leve</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Gráfico -->
+    <div class="chart-wrap">
+      <canvas id="tempChart" height="110" aria-label="Gráfico comparativo de temperatura"></canvas>
+    </div>
+
+    <footer>Previsão do Tempo – by Vinicius Marteleto</footer>
+  </div>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <script>
+    // Sol/Lua conforme fuso horário de Brasília
+    function atualizarAstros() {
+      const agoraStr = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      const hora = new Date(agoraStr).getHours();
+      const sun = document.getElementById("sun");
+      const moon = document.getElementById("moon");
+
+      if (hora >= 6 && hora < 18) {
+        sun.style.display = "block";
+        moon.style.display = "none";
+      } else {
+        sun.style.display = "none";
+        moon.style.display = "block";
+      }
+    }
+    atualizarAstros();
+    setInterval(atualizarAstros, 60000);
+
+    // Chuva suave no vidro
+    function criarChuva(qtd = 120) {
+      const rain = document.getElementById("rain");
+      rain.innerHTML = "";
+      const width = window.innerWidth;
+      for (let i = 0; i < qtd; i++) {
+        const d = document.createElement("div");
+        d.className = "drop";
+        const left = Math.random() * width;
+        d.style.left = left + "px";
+        d.style.animationDuration = (1.6 + Math.random() * 1.2) + "s";
+        d.style.animationDelay = (Math.random() * 2.0) + "s";
+        rain.appendChild(d);
+      }
+    }
+    criarChuva();
+    window.addEventListener("resize", () => criarChuva());
+
+    // Gráfico de temperatura
+    const ctx = document.getElementById("tempChart").getContext("2d");
+    const tempChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: ["Taubaté", "São Paulo", "Rio de Janeiro"],
+        datasets: [{
+          label: "Temperatura (°C)",
+          data: [24, 20, 27],
+          borderColor: "#ffd166",
+          backgroundColor: "rgba(255, 209, 102, 0.15)",
+          tension: 0.3,
+          fill: true,
+          pointBackgroundColor: "#ffd166",
+          pointRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: "#e0f2ff" } }
+        },
+        scales: {
+          x: { ticks: { color: "#a9c1d9" }, grid: { color: "rgba(255,255,255,0.06)" } },
+          y: {
+            ticks: { color: "#a9c1d9" },
+            grid: { color: "rgba(255,255,255,0.06)" },
+            suggestedMin: 0,
+            suggestedMax: 40
+          }
+        }
+      }
+    });
+
+    // Integração futura (ex.: via Flask/Jinja):
+    // Preencha os cards/tabela dinamicamente e atualize o gráfico com valores reais.
+    // Exemplo de leitura de dataset-clima para aplicar estilos especiais no futuro:
+    document.querySelectorAll(".card").forEach(card => {
+      const clima = (card.dataset.clima || "").toLowerCase();
+      // Aqui você pode adaptar intensidade da chuva visual, se quiser, com base no clima:
+      // ex.: if (clima.includes("forte")) criarChuva(180);
+    });
+  </script>
+</body>
+</html>

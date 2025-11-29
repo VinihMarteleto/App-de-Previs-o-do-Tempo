@@ -1,0 +1,6 @@
+requests
+matplotlib
+python-dotenv
+streamlit
+plotly
+flask

@@ -1,0 +1,8 @@
+.env
+data/weather.db
+.venv/
+venv/
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
