@@ -34,4 +34,4 @@ pip install -r requirements.txt
 
 ## 📸 Demonstração
 
-![ilustracao de Previsão do Tempo](![projeto Vinih.PNG](../../OneDrive/Imagens/projeto%20Vinih.PNG))
+![ilustracao de Previsão do Tempo](![projeto Vinih.PNG](c:\Users\Vini\OneDrive\Imagens\projeto Vinih.PNG))
